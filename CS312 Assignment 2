@@ -1,0 +1,100 @@
+
+
+###### QUESTION 6 #############################################################
+
+#STEP 1: Import & Clean the Data
+
+ksdata <- na.omit(read.csv("https://tinyurl.com/KaggleDataCS112",header = T,na.strings=c(""," ","NA")))
+
+#STEP 2: Codify outcome variable
+
+##create a binary dummy variable success, and assign all other inputs except for"successul" into the "0" category
+success <- ifelse(ksdata$state=="successful",1,0)
+
+#STEP 3: Getting the project length variable
+
+library(lubridate)
+
+##calculate the days between launch date and deadline date
+length <- time_length(interval(ksdata$launched,ksdata$deadline),"days")
+
+##create a data frame with new variables
+ksdata1 <- data.frame(ksdata,success,length)
+
+##select and create a subset of the data
+ksdata2 <- subset(ksdata1,length <60,select=ID:length)
+
+#STEP 4: Splitting the data into a training and a testing set
+
+##80% of the sample size
+sample_size <- floor(0.8 * nrow(ksdata2))
+
+##randomly assign 80% data into training data, and the rest to test data
+set.seed(1)
+train_ind <- sample(seq_len(nrow(ksdata2)), size = sample_size)
+train <- ksdata2[train_ind, ]
+test <- ksdata2[-train_ind, ]
+
+#STEP 5: Fitting a model
+
+##fix all the formats of independent variables
+ksdata2$backers <- as.numeric(ksdata2$backers)
+ksdata2$main_category <- as.factor(ksdata2$main_category)
+ksdata2$usd_goal_real<-as.numeric(ksdata2$usd_goal_real)
+
+##fit a logistic regression model
+ks.glm <- glm(success~ backers+main_category+usd_goal_real+length,data=train,family = binomial)
+summary(ks.glm)
+
+#STEP 6: Predictions
+
+##use the test data and the regression model to predict outcome variable probabilities, and convert to a binary result 
+glm.probs.test <- predict(ks.glm,newdata = test,type = "response")
+glm.pred.test <- rep("0",39507)
+
+##under the rule that any probability above 50% will be assigned to "1", if else to "0"
+glm.pred.test[glm.probs.test>0.5]="1"
+
+##use the training data and the regression model to predict outcome variable probabilities, and convert to a binary result
+glm.probs.train <- predict(ks.glm,type = "response")
+glm.pred.train <- rep("0",158024)
+
+##under the rule that any probability above 50% will be assigned to "1", if else to "0"
+glm.pred.train[glm.probs.train>0.5]="1"
+
+#STEP 7: How well did it do?
+
+##create a confusion table to compare testing results, calculate misclassification rate for training and test data
+
+##test set
+table(glm.pred.test,test$success)
+misclassification_rate_test <- mean(glm.pred.test!=test$success)
+misclassification_rate_test
+
+##training set
+table(glm.pred.train,train$success)
+misclassification_rate_train <- mean(glm.pred.train!=train$success)
+misclassification_rate_train
+
+#STEP 7:LOOCV method
+
+##take 5% of the total data set as the data set for LOOCV
+library(boot)
+sample_size_loocv <- floor(0.05 * nrow(ksdata2))
+set.seed(1)
+train_ind_loocv <- sample(seq_len(nrow(ksdata2)), size = sample_size_loocv)
+train_loocv <- ksdata2[train_ind_loocv, ]
+
+##use the loocv training data (5% of total) to fit a new logistic regression model
+ks.glm.loocv <- glm(success~ backers+main_category+usd_goal_real+length,data = train_loocv,family = binomial)
+
+##use the cost function that is for binary results, with the 50% rule
+cost <- function(r, pi) mean(abs(r-pi)> 0.5)
+
+##get the cross-validation error rate
+cv.err=cv.glm(train_loocv,ks.glm.loocv, cost = cost)
+cv.err$delta[1]
+
+
+
+
