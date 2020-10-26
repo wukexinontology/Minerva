@@ -1,6 +1,8 @@
 library(boot)
 library(arm)
 library(Metrics)
+library(Matching)
+
 ##### QUESTION 1 ################################################################################## 
 set.seed(1)
 
@@ -56,7 +58,7 @@ rmse(my_data_after_sim$child_years,my_data_after_sim$sim_child_years)
 ### The correct model has smaller RMSE because accounting for the interaction term improved the model accuracy in predicting the regression relationship between the variables.
 
 
-#### QUESTION 2 ################################################################
+##### QUESTION 2 ################################################################
 
 #create a sample of data from question 1, using first 8 observations only
 my_data_subset <- my_data[sample(1:nrow(my_data),8,replace=FALSE),]
@@ -93,7 +95,8 @@ plot(x, y, main = "Correlation of Years of Education Between Parents and Child w
 abline(lm(y ~ x, data = my_data_outlier), col = "blue")
 
 
-###### QUESTION 3 #############################
+###### QUESTION 3 #####################################################################
+
 install.packages("Matching")
 library(Matching)
 View(lalonde)
@@ -135,77 +138,129 @@ sum(rss)
 rsq=1-(sum(rss)/sum(tss))
 rsq
 
-#STEP 3：
-#setting all the predictors at their means EXCEPT education
+#STEP 3: 95% confidence interval for expected real earning in 1978
 
-person_educ3 = c(mean(lalonde$age), 3, mean(lalonde$re74), mean(lalonde$re75), 
-                 mean(lalonde$hisp), mean(lalonde$black))
+###use the multi-linear model
+lm1<-lm(re78~age+educ+re74+re75+hisp+black, data=lalonde)
 
-#run the regression simulation 1000 times
-sim1_results <- sim(lm1, 1000)
+###simulate the regression model to get simulated coefficients 1000 times
+sim.lm1 <- sim(lm1, 1000)
 
-#store the prediction results in a matrix
-storage.matrix <- matrix(NA, nrow = 1000, ncol = 14)
-storage.matrix_expected <- matrix(NA, nrow = 1000, ncol = 14)
+###build a storage matrix to store the 1000 (predicted values) * 14 (education years) values
+storage.matrix.predicted <- matrix(NA, nrow = 1000, ncol = 14)
+storage.matrix.expected <- matrix(NA, nrow = 1000, ncol = 14)
 
-#use a function to get predicted response variable value
-predicted_re78 <- function(coefs, person) {
+###build a function to get predicted value of each coefficient simulated
+get_predicted_re78 <- function(coefs, people) {
   re78 <- coefs[1] + 
-    person[1]*coefs[2] +
-    person[2]*coefs[3] +
-    person[3]*coefs[4] + 
-    person[4]*coefs[5] +
-    person[5]*coefs[6] + 
-    person[6]*coefs[7]
+    people[1]*coefs[2] +
+    people[2]*coefs[3] +
+    people[3]*coefs[4] + 
+    people[4]*coefs[5] +
+    people[5]*coefs[6] + 
+    people[6]*coefs[7]
   
   return(re78)
 }
 
-#build a  nested for loop to simulate the 1000 times to get expected results, and loop over age 3 to 16
-for (j in 1:1000) {
+###repeat 1000 times for each predicted probability to get average, aka expected probability
+for (m in 1:1000) {
+###iterate for each education years group
   for (educ in c(3:16)) {
+###generate 1000 predicted values with each simulated set of coefficients, for a particular people profile
     for (i in 1:1000) {
       person_educ = c(mean(lalonde$age), educ, mean(lalonde$re74), 
                       mean(lalonde$re75), mean(lalonde$hisp), mean(lalonde$black)) 
-      storage.matrix[i, educ-2] <- predicted_re78(sim1_results@coef[i, ], person_educ) 
+      storage.matrix.predicted[i, educ-2] <- get_predicted_re78(sim.lm1@coef[i, ], person_educ) 
+    storage.matrix.expected[m, educ-2] <- mean(get_predicted_re78(sim.lm1@coef[m, ], person_educ) )
     }
-    storage.matrix_expected[j, educ-2] <- mean(storage.matrix[, educ-2])
   }
 }  
 
-#get the confidence intervals of the expected value in the matrix
-conf_intervals = apply(storage.matrix_expected, 2, quantile, probs = c(0.025, 0.975))
-conf_intervals
 
-#plot the confidence intervals across age 
+###calculate the confidence interval for expected values
+conf.intervals = apply(storage.matrix.expected, 2, quantile, probs = c(0.025, 0.975))
+conf.intervals
+
+###plot the confidence interval
 plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,10000), 
-     main = "Expected Real Earnings in 1978", 
-     xlab = "Years of Education", ylab = "Expected Real Earnings in USD")
+     main = "The Expected Values of Real Earnings in 1978", 
+     xlab = "Years of Education", ylab = "Expected Values of Real Earnings in 1978 in USD")
 
 for (educ in 3:16) {
   segments(
     x0 = educ,
-    y0 = conf_intervals[1, educ-2],
+    y0 = conf.intervals[1, educ-2],
     x1 = educ, 
-    y1 = conf_intervals[2, educ-2],
-    lwd = 2)
+    y1 = conf.intervals[2, educ-2],
+    lwd = 20)
 }
 
 
-coef.lm1.sim <- coef(lm1.sim)
-apply(coef(M1.sim), 2, quantile)
+#STEP 4: 95% confidence interval for predicted real earning in 1978
 
-#################################################################
+###use the multi-linear model
+lm1<-lm(re78~age+educ+re74+re75+hisp+black, data=lalonde)
 
-#Question4
+###simulate the regression model to get simulated coefficients 1000 times
+sim.lm1 <- sim(lm1, 1000)
+
+###build a storage matrix to store the 1000 (predicted values) * 14 (education years) values
+storage.matrix.predicted <- matrix(NA, nrow = 1000, ncol = 14)
+
+###build a function to get predicted value of each coefficient simulated
+get_predicted_re78 <- function(coefs, people) {
+  re78 <- coefs[1] + 
+    people[1]*coefs[2] +
+    people[2]*coefs[3] +
+    people[3]*coefs[4] + 
+    people[4]*coefs[5] +
+    people[5]*coefs[6] + 
+    people[6]*coefs[7]
+  
+  return(re78)
+}
+
+
+###iterate for each education years group
+  for (educ in c(3:16)) {
+###generate 1000 predicted values with each simulated set of coefficients, for a particular people profile
+    for (i in 1:1000) {
+      person_educ = c(mean(lalonde$age), educ, mean(lalonde$re74), 
+                      mean(lalonde$re75), mean(lalonde$hisp), mean(lalonde$black)) 
+      storage.matrix.predicted[i, educ-2] <- get_predicted_re78(sim.lm1@coef[i, ], person_educ) 
+      }
+  }  
+
+
+###calculate the confidence interval for predicted values
+conf.intervals = apply(storage.matrix.predicted, 2, quantile, probs = c(0.025, 0.975))
+conf.intervals
+
+###plot the confidence interval
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,10000), 
+     main = "The Predicted Values of Real Earnings in 1978", 
+     xlab = "Years of Education", ylab = "Predicted Values of Real Earnings in 1978 in USD")
+
+for (educ in 3:16) {
+  segments(
+    x0 = educ,
+    y0 = conf.intervals[1, educ-2],
+    x1 = educ, 
+    y1 = conf.intervals[2, educ-2],
+    lwd = 20)
+}
+
+
+
+###### QUESTION 4 ##########################################################
+
+#STEP 1: Fit the regression model. Report and interpret the regression coefficient and 95% confidence intervals for age and education
 glm1 <- glm(treat~age+educ+hisp+re74+re75,data=lalonde,family=binomial)
 summary(glm1)
 confint(glm1)
 
-#glm.prob <- predict(glm1,type = "response")
-#contrasts(treat)
-
-###???###bootstrap
+#STEP 2: Bootstrap
 library(boot)
 boot_coef <- function(data,index){
   coef(glm(treat~age+educ+hisp+re74+re75,data=lalonde,subset=index,family=binomial))
@@ -213,75 +268,104 @@ boot_coef <- function(data,index){
 
 b <- boot(lalonde,boot_coef,1000)
 
-
-#calculate confidence interval for the first coefficient:age
+###calculate confidence interval for the first coefficient:age
 boot.ci(boot.out = b,index = 1,type = "perc")
 
-#calculate confidence interval for the second coefficient:educ
+###calculate confidence interval for the second coefficient:educ
 boot.ci(boot.out = b,index = 2,type = "perc")
 
-##Setting all the predictors at their means EXCEPT education
-#create a data visualization that shows the 95% confidence interval of the expected probability of treatment==1 as education varies from 3 to 16
+#STEP 3: 95% confident interval plot for expected probability
 
+data("lalonde")
+glm1 <- glm(treat~age+educ+hisp+re74+re75,data=lalonde,family=binomial)
+sim.me <- sim(glm1,1000)
 
-sim_results <- sim(glm1, n.sim = 1000)
-
-
-
-storage <- c()
-
-#"age","educ","hisp","re74","re75"
-for (i in 1:1000) {
-  xs = c(mean(lalonde$age),3,mean(lalonde$hisp),mean(lalonde$re74),mean(lalonde$re75))
-  storage[i] = exp(sum(sim_results[[1]][i,]*c(1,xs)))/(1+exp(sum(sim_results[[1]][i,]*c(1,xs))))
+get_predicted_prob <- function(coefs,people){
+  logit <- coefs[1]+people[1]*coefs[2]+people[2]*coefs[3]+people[3]*coefs[4]+people[4]*coefs[5]+people[5]*coefs[6]
+  return(exp(logit)/(1+exp(logit)))
 }
 
-quantile(storage, probs = c(0.005, 0.995),na.rm = T)
+###build a storage matrix to store the 1000 (expected probabilities) * 14 (education years) values
+store2.matrix <- matrix(NA,nrow = 1000,ncol = 14)
 
-storage.matrix_eprob <- matrix(NA, nrow = 1000, ncol = 14)
-
-get_treat_eprob <- function(coefs, person) {
-  logit <- coefs[1] + person[1]*coefs[2] +
-    person[2]*coefs[3] +
-    person[3]*coefs[4] + 
-    person[4]*coefs[5] +
-    person[5]*coefs[6]
-  
-  return(exp(logit) / (1 + exp(logit)))
-}
-
-for (educ in c(3:16)) {
-  for (i in 1:1000)
-  {
-    educ_person <- c(mean(lalonde$age),educ,mean(lalonde$hisp), mean(lalonde$re74),mean(lalonde$re75))
-    storage.matrix_eprob[i, educ - 2] <- get_treat_eprob(sim_results[[1]][i, ], educ_person)
+###repeat 1000 times for each predicted probability to get average, aka expected probability
+for(m in 1:1000){
+###use the 1000 simulated coefficients to get 1000 predicted probabilities, for each education year
+  for (educ in c(3:16)) {
+     for (i in 1:1000){
+      people_educ <- c(mean(lalonde$age),educ,mean(lalonde$hisp),mean(lalonde$re74),mean(lalonde$re75))
+      store1.matrix[i,educ-2] <- get_predicted_prob(sim.me@coef[i, ],people_educ)
+    store2.matrix[m,educ-2] <- mean(get_predicted_prob(sim.me@coef[m, ],people_educ))
+    }
   }
 }
 
+###get the confidence intervals of 1000 expected probabilities, for each education year
+conf.intervals_exp_prob <- apply(store2.matrix, 2, quantile, probs = c(0.025, 0.975))
+conf.intervals_exp_prob
 
-plot(x = c(1:100), y = c(1:100), type = "n", xlim = c(3,16), ylim = c(0,1), 
-     main = "Probability of Treatment", xlab = "Years of Education", 
-     ylab = "Probability of Treatment")
+###plot the data, use a segment function
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,1), 
+     main = "95% Confidence Intervals of Expected Probability of Treatment as Years of Education Varies", xlab = "Years of Education", 
+     ylab = "Expected Probability of Treatment")
 
-
-# obtain confidence intervals for each age by applying quantile() to each column in a data frame of simulated probabilities.
-conf.intervals_eprob <- apply(storage.matrix_eprob, 2, quantile, probs = c(0.005, 0.995))
-
-print(conf.intervals_eprob)
 
 for (educ in 3:16) {
   segments(
     x0 = educ,
-    y0 = conf.intervals_eprob[1, educ - 2],
+    y0 = conf.intervals_exp_prob[1, educ - 2],
     x1 = educ,
-    y1 = conf.intervals_eprob[2, educ - 2],
-    lwd = 2)
+    y1 = conf.intervals_exp_prob[2, educ - 2],
+    lwd = 20)
 }
 
-################################################################
+
+#STEP 4: 95% confident interval plot for predicted probability
+
+###simulate the regression model to get simulated coefficients 1000 times
+sim.me <- sim(glm1,1000)
+
+###build a storage matrix to store the 1000 (predicted probabilities) * 14 (education years) values
+store1.matrix <- matrix(NA,nrow = 1000,ncol = 14)
+
+###build a function to get predicted probabilities for a particular type of people profile
+get_predicted_prob <- function(coefs,people){
+  logit <- coefs[1]+people[1]*coefs[2]+people[2]*coefs[3]+people[3]*coefs[4]+people[4]*coefs[5]+people[5]*coefs[6]
+  return(exp(logit)/(1+exp(logit)))
+}
+
+###use the 1000 simulated coefficients to get 1000 predicted probabilities, for each education year
+for (educ in c(3:16)) {
+  for (i in 1:1000){
+  people_educ <- c(mean(lalonde$age),educ,mean(lalonde$hisp),mean(lalonde$re74),mean(lalonde$re75))
+  store1.matrix[i,educ-2] <- get_predicted_prob(sim.me@coef[i, ],people_educ)
+  }
+}
+
+###get the confidence intervals of 1000 predictions, for each education year
+conf.intervals_predict_prob <- apply(store1.matrix, 2, quantile, probs = c(0.025, 0.975))
+conf.intervals_predict_prob
+
+###plot the data, use a segment function
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,1), 
+     main = "95% Confidence Intervals of Predicted Probability of Treatment as Years of Education Varies", xlab = "Years of Education", 
+     ylab = "Predicted Probability of Treatment")
 
 
-###### QUESTION 6 #############################################################
+for (educ in 3:16) {
+  segments(
+    x0 = educ,
+    y0 = conf.intervals_predict_prob[1, educ - 2],
+    x1 = educ,
+    y1 = conf.intervals_predict_prob[2, educ - 2],
+    lwd = 20)
+}
+
+
+###### QUESTION 5 ##########################################################
+##no code
+
+###### QUESTION 6 ##########################################################
 
 #STEP 1: Import & Clean the Data
 
