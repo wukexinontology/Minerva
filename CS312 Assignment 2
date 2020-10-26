@@ -1,3 +1,284 @@
+library(boot)
+library(arm)
+library(Metrics)
+##### QUESTION 1 ################################################################################## 
+set.seed(1)
+
+#STEP 1&2: data generation process for 1000 observations
+###here we are using the years of education of the parents and family income to predict the years of education of the child.
+###the system component represent the randomness introduced by imperfect approximation of population distribution using a regression model.
+###the stochastic component represent the randomness that is inherent in nature with our predictions.
+parents_years <- rnorm(1000,mean =5 ,sd=2)
+family_income <- rnorm(1000,mean=100,sd=10)
+systematic_component <- 1.2*parents_years+0.02*runif(1000)+0.01*parents_years*family_income
+stochastic_component <- rnorm(1000,mean=2,sd=3)
+
+child_years <- systematic_component+stochastic_component
+
+###create a data frame of the generated observations
+my_data<- data.frame(cbind(parents_years,family_income, child_years))
+head(my_data)
+
+#STEP 3: incorrect model
+
+###fit a regression model(#incorrect model),using parent years of education and family income to predict
+lm_incorrect <- lm(child_years~parents_years+family_income,data=my_data)
+lm_incorrect
+
+###simulate the regression model
+sim_incorrect <- sim(lm_incorrect,n.sim=1)
+sim_incorrect
+
+sim_child_years_incorrect <-2.13+2.14*parents_years+0.04*family_income
+
+###calculate the RMSE of simulated predictions against the response variable in the original dataset
+my_data_after_sim2 <- cbind.data.frame(my_data,sim_child_years_incorrect)
+rmse(my_data_after_sim2$child_years,my_data_after_sim2$sim_child_years_incorrect)
+
+#STEP 4: correct model
+
+###fit a regression model(#correct model),using parent years of education, family income, and their interaction to predict
+lm_correct <- lm(child_years~parents_years*family_income,data=my_data)
+lm_correct
+
+###simulate the regression model
+sim_correct <- sim(lm_correct,n.sim=1)
+sim_correct
+
+sim_child_years <-3.23+1.31*parents_years-0.009*family_income+0.008*parents_years*family_income
+
+###calculate the RMSE of simulated predictions against the response variable in the original dataset
+my_data_after_sim <- cbind.data.frame(my_data,sim_child_years)
+rmse(my_data_after_sim$child_years,my_data_after_sim$sim_child_years)
+
+#STEP 5:
+### For the incorrect model, the RMSE is 4.816787; for the correct model, the RMSE is 3.164856. 
+### The correct model has smaller RMSE because accounting for the interaction term improved the model accuracy in predicting the regression relationship between the variables.
+
+
+#### QUESTION 2 ################################################################
+
+#create a sample of data from question 1, using first 8 observations only
+my_data_subset <- my_data[sample(1:nrow(my_data),8,replace=FALSE),]
+my_data_subset
+
+x <- my_data_subset$parents_years
+y <- my_data_subset$child_years
+
+#Plot with main and axis titles
+#Change point shape (pch = 19) and remove frame.
+plot(x, y, main = "Correlation of Years of Education Between Parents and Child",
+     sub = 'Description: 8 randomly selected observations are shown in this scatterplot, showing correlation and fitted regression line between x and y axis variables', 
+     font.sub = 1, 
+     font.main = 2,
+     xlab = "Years of Education: Parents", ylab = "Years of Education: Child",
+     pch = 19, frame = FALSE)
+#add regression line
+abline(lm(y ~ x, data = my_data_subset), col = "blue")
+
+#with outlier
+outlier <- c(1,0,40)
+my_data_outlier <- rbind(my_data_subset,outlier)
+x <- my_data_outlier$parents_years
+y <- my_data_outlier$child_years
+# Plot with main and axis titles
+# Change point shape (pch = 19) and remove frame.
+plot(x, y, main = "Correlation of Years of Education Between Parents and Child with Outlier",
+     sub = 'Description:An extreme case was added to the 8 previous observations, distorting the fitted regression line', 
+     font.sub = 1, 
+     font.main = 1,
+     xlab = "Years of Education: Parents", ylab = "Years of Education: Child",
+     pch = 19, frame = FALSE)
+# Add regression line
+abline(lm(y ~ x, data = my_data_outlier), col = "blue")
+
+
+###### QUESTION 3 #############################
+install.packages("Matching")
+library(Matching)
+View(lalonde)
+
+#STEP 1: Run a multiple linear regression
+lm1<-lm(re78~age+educ+re74+re75+hisp+black, data=lalonde)
+lm1
+
+#STEP 2:
+###report coefficients and R-squared
+summary(lm1)
+
+###codes that helped to calculate R-squared by hand
+###tss=total sum of squares, loop over to calculate sum
+tss <- c()
+for(j in 1:ncol(lalonde)){
+  tssVec <- c()
+  for(i in 1:nrow(lalonde)){
+    b <- sum(((lalonde$re78[i]) - mean(lalonde$re78))^2)
+    tssVec <- c(tssVec, b)
+  }
+  tss <- c(tss, sum(tssVec))
+}
+sum(tss)
+
+###rss=root sum of squares, loop over to calculate sum
+rss <- c()
+for(j in 1:ncol(lalonde)){
+  rssVec <- c()
+  for(i in 1:nrow(lalonde)){
+    d <- sum((lalonde$re78[i]-predict_re78[i])^2)
+    rssVec <- c(rssVec, d)
+  }
+  rss <- c(rss, sum(rssVec))
+}
+sum(rss)
+
+###calculate rsq
+rsq=1-(sum(rss)/sum(tss))
+rsq
+
+#STEP 3：
+#setting all the predictors at their means EXCEPT education
+
+person_educ3 = c(mean(lalonde$age), 3, mean(lalonde$re74), mean(lalonde$re75), 
+                 mean(lalonde$hisp), mean(lalonde$black))
+
+#run the regression simulation 1000 times
+sim1_results <- sim(lm1, 1000)
+
+#store the prediction results in a matrix
+storage.matrix <- matrix(NA, nrow = 1000, ncol = 14)
+storage.matrix_expected <- matrix(NA, nrow = 1000, ncol = 14)
+
+#use a function to get predicted response variable value
+predicted_re78 <- function(coefs, person) {
+  re78 <- coefs[1] + 
+    person[1]*coefs[2] +
+    person[2]*coefs[3] +
+    person[3]*coefs[4] + 
+    person[4]*coefs[5] +
+    person[5]*coefs[6] + 
+    person[6]*coefs[7]
+  
+  return(re78)
+}
+
+#build a  nested for loop to simulate the 1000 times to get expected results, and loop over age 3 to 16
+for (j in 1:1000) {
+  for (educ in c(3:16)) {
+    for (i in 1:1000) {
+      person_educ = c(mean(lalonde$age), educ, mean(lalonde$re74), 
+                      mean(lalonde$re75), mean(lalonde$hisp), mean(lalonde$black)) 
+      storage.matrix[i, educ-2] <- predicted_re78(sim1_results@coef[i, ], person_educ) 
+    }
+    storage.matrix_expected[j, educ-2] <- mean(storage.matrix[, educ-2])
+  }
+}  
+
+#get the confidence intervals of the expected value in the matrix
+conf_intervals = apply(storage.matrix_expected, 2, quantile, probs = c(0.025, 0.975))
+conf_intervals
+
+#plot the confidence intervals across age 
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,10000), 
+     main = "Expected Real Earnings in 1978", 
+     xlab = "Years of Education", ylab = "Expected Real Earnings in USD")
+
+for (educ in 3:16) {
+  segments(
+    x0 = educ,
+    y0 = conf_intervals[1, educ-2],
+    x1 = educ, 
+    y1 = conf_intervals[2, educ-2],
+    lwd = 2)
+}
+
+
+coef.lm1.sim <- coef(lm1.sim)
+apply(coef(M1.sim), 2, quantile)
+
+#################################################################
+
+#Question4
+glm1 <- glm(treat~age+educ+hisp+re74+re75,data=lalonde,family=binomial)
+summary(glm1)
+confint(glm1)
+
+#glm.prob <- predict(glm1,type = "response")
+#contrasts(treat)
+
+###???###bootstrap
+library(boot)
+boot_coef <- function(data,index){
+  coef(glm(treat~age+educ+hisp+re74+re75,data=lalonde,subset=index,family=binomial))
+}
+
+b <- boot(lalonde,boot_coef,1000)
+
+
+#calculate confidence interval for the first coefficient:age
+boot.ci(boot.out = b,index = 1,type = "perc")
+
+#calculate confidence interval for the second coefficient:educ
+boot.ci(boot.out = b,index = 2,type = "perc")
+
+##Setting all the predictors at their means EXCEPT education
+#create a data visualization that shows the 95% confidence interval of the expected probability of treatment==1 as education varies from 3 to 16
+
+
+sim_results <- sim(glm1, n.sim = 1000)
+
+
+
+storage <- c()
+
+#"age","educ","hisp","re74","re75"
+for (i in 1:1000) {
+  xs = c(mean(lalonde$age),3,mean(lalonde$hisp),mean(lalonde$re74),mean(lalonde$re75))
+  storage[i] = exp(sum(sim_results[[1]][i,]*c(1,xs)))/(1+exp(sum(sim_results[[1]][i,]*c(1,xs))))
+}
+
+quantile(storage, probs = c(0.005, 0.995),na.rm = T)
+
+storage.matrix_eprob <- matrix(NA, nrow = 1000, ncol = 14)
+
+get_treat_eprob <- function(coefs, person) {
+  logit <- coefs[1] + person[1]*coefs[2] +
+    person[2]*coefs[3] +
+    person[3]*coefs[4] + 
+    person[4]*coefs[5] +
+    person[5]*coefs[6]
+  
+  return(exp(logit) / (1 + exp(logit)))
+}
+
+for (educ in c(3:16)) {
+  for (i in 1:1000)
+  {
+    educ_person <- c(mean(lalonde$age),educ,mean(lalonde$hisp), mean(lalonde$re74),mean(lalonde$re75))
+    storage.matrix_eprob[i, educ - 2] <- get_treat_eprob(sim_results[[1]][i, ], educ_person)
+  }
+}
+
+
+plot(x = c(1:100), y = c(1:100), type = "n", xlim = c(3,16), ylim = c(0,1), 
+     main = "Probability of Treatment", xlab = "Years of Education", 
+     ylab = "Probability of Treatment")
+
+
+# obtain confidence intervals for each age by applying quantile() to each column in a data frame of simulated probabilities.
+conf.intervals_eprob <- apply(storage.matrix_eprob, 2, quantile, probs = c(0.005, 0.995))
+
+print(conf.intervals_eprob)
+
+for (educ in 3:16) {
+  segments(
+    x0 = educ,
+    y0 = conf.intervals_eprob[1, educ - 2],
+    x1 = educ,
+    y1 = conf.intervals_eprob[2, educ - 2],
+    lwd = 2)
+}
+
+################################################################
 
 
 ###### QUESTION 6 #############################################################
