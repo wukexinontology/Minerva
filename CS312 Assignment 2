@@ -184,7 +184,7 @@ conf.intervals
 
 ###plot the confidence interval
 plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,10000), 
-     main = "The Expected Values of Real Earnings in 1978", 
+     main = "The 95% Confidence Interval of Expected Real Earnings in 1978", 
      xlab = "Years of Education", ylab = "Expected Values of Real Earnings in 1978 in USD")
 
 for (educ in 3:16) {
@@ -239,7 +239,7 @@ conf.intervals
 
 ###plot the confidence interval
 plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(3,16), ylim = c(0,10000), 
-     main = "The Predicted Values of Real Earnings in 1978", 
+     main = "The 95% Confidence Interval of Predicted Real Earnings in 1978", 
      xlab = "Years of Education", ylab = "Predicted Values of Real Earnings in 1978 in USD")
 
 for (educ in 3:16) {
