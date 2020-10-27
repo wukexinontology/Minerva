@@ -269,10 +269,10 @@ boot_coef <- function(data,index){
 b <- boot(lalonde,boot_coef,1000)
 
 ###calculate confidence interval for the first coefficient:age
-boot.ci(boot.out = b,index = 1,type = "perc")
+boot.ci(boot.out = b,index = 2,type = "perc")
 
 ###calculate confidence interval for the second coefficient:educ
-boot.ci(boot.out = b,index = 2,type = "perc")
+boot.ci(boot.out = b,index = 3,type = "perc")
 
 #STEP 3: 95% confident interval plot for expected probability
 
