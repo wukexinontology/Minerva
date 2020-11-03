@@ -1,0 +1,115 @@
+install.packages("ggthemes")
+install.packages("dplyr")
+install.packages("vioplot")
+install.packages("tidyr")
+install.packages("hrbrthemes")
+install.packages("devtools")
+devtools::install_github("cardiomoon/ggiraphExtra")
+
+##import data
+library(readxl)
+merchant_fake_data <- read_excel("C:/Users/glori/Downloads/merchant-fake-data.xlsx")
+csdata <- merchant_fake_data
+str(csdata)
+
+##create new variables and combine them into the data
+total_bonus <- csdata$`Formula bonus amt.`+csdata$`Discretionary bonus amt.`+csdata$`Spiffs amt.`
+percent_bonus <- 1-csdata$`Base salary amt.`/csdata$`Total compensation`
+csdata2 <- data.frame(csdata,total_bonus,percent_bonus)
+
+##understand the data
+range(csdata2$Base.salary.amt.)
+range(csdata2$total_bonus)
+
+View(csdata2)
+
+library(ggplot2)
+library(ggthemes)
+
+x <- csdata2$Base.salary.amt.
+y <- csdata2$total_bonus
+
+#scatterplot
+s.plot <- ggplot(csdata2, aes(x,y,col=Author,shape =Role)) + 
+  geom_point(size=3) + 
+  scale_shape_manual(values=c(16, 1))+
+  scale_color_manual(labels = c("United States", "The Netherlands","China"),values = c("steelblue1","limegreen","hotpink1")) +
+  geom_smooth(method = "lm",size=1,se=FALSE,aes(linetype = Role))+
+  labs(subtitle="Bonus and Base Amount by Country and by Role", 
+       geom_point(),
+       y="Total Bonus (in RMB)", 
+       x="Total Base Salary (in RMB)",
+       col="Country",
+       title="Base Salary and Bonus Correlation by Country and by Role", 
+       caption = "Source: Merchant et al. 2011")
+
+plot(s.plot)
+
+
+hist(csdata2$Base.salary.amt.)
+
+library(vioplot)
+library(dplyr)
+library(tidyr)
+library(forcats)
+library(hrbrthemes)
+library(viridis)
+
+data.gm <- csdata2[csdata2$Role=="General manager",]
+data.dm <- csdata2[csdata2$Role=="Departmental manager",]
+
+View(data.gm)
+
+#violin - gm
+v.plot.gm <- ggplot(data.gm, aes(x=Author, y=percent_bonus, fill=Author, color=Author)) +
+  geom_violin(width=2.1, size=0.2) +
+  theme_ipsum() +
+  theme(
+    legend.position="none"
+  ) +
+  coord_flip() + 
+  xlab("Countries")+
+  scale_x_discrete(labels = c("United States","The Netherlands","China")) +
+  scale_fill_manual(values = c("steelblue1","limegreen","hotpink1")) +
+  scale_color_manual(values = c("steelblue1","limegreen","hotpink1")) +
+  ylab("Bonus to Total Compensation (%)")+
+  labs(title="Bonus % to Total Compensation Distribution for General Managers",
+       caption="Source: Merchant et al. 2011")
+
+v.plot.gm
+
+
+#violin - dm
+v.plot.dm <- ggplot(data.dm, aes(x=Author, y=percent_bonus, fill=Author, color=Author)) +
+  geom_violin(width=2.1, size=0.2) +
+  scale_x_discrete(labels = c("United States","The Netherlands","China")) +
+  theme_ipsum() +
+  theme(
+    legend.position="none"
+  ) +
+  coord_flip() + 
+  xlab("Countries")+
+  scale_fill_manual(values = c("steelblue2","green3","hotpink2")) +
+  scale_color_manual(values = c("steelblue2","green3","hotpink2")) +
+  ylab("Bonus to Total Compensation (%)")+
+  labs(title="Bonus % to Total Compensation Distribution for Departmental Managers",
+       caption="Source: Merchant et al. 2011")
+
+v.plot.dm
+
+###use logistic regression model to predict Dutch or non-Dutch data
+dutch.vs.nondutch <- ifelse(csdata2$Author=="Jansen et al.",1,0)
+csdata3 <- data_frame(csdata2,dutch.vs.nondutch)
+glm.pd <- glm(dutch.vs.nondutch~ Role+Base.salary.amt.+Formula.bonus.amt.+Discretionary.bonus.amt.+Spiffs.amt.,data = csdata3,family = binomial)
+summary(glm.pd)
+
+#ggPredict(glm.pd,se=TRUE,interactive=TRUE,digits=3)
+
+
+###use logistic regression model to predict USA data from China data
+csdata4 <- csdata2[csdata2$Author!="Jansen et al.",]
+USA.or.not <- ifelse(csdata4$Author=="Gibbs et al.",1,0)
+csdata5 <- data.frame(csdata4,USA.or.not)
+
+glm.uc <- glm(USA.or.not~ Role+Base.salary.amt.+Formula.bonus.amt.+Discretionary.bonus.amt.+Spiffs.amt.,data = csdata5,family = binomial)
+summary(glm.uc)
